@@ -1,0 +1,37 @@
+# Visual Studio
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.cache
+*.userosscache
+*.sln.docstates
+*.csproj.user
+
+# Конфиги с секретами
+appsettings.json
+appsettings.*.json
+.env
+.env.local
+
+# Базы данных
+*.db
+*.sqlite
+
+# IDE
+.idea/
+.vscode/
+
+# Логи
+logs/
+*.log
+
+# Временные файлы
+tmp/
+temp/
+*.swp
+*.swo
+
+# Пакеты
+packages/

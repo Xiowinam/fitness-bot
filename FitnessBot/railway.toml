@@ -1,0 +1,9 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "dotnet FitnessBot.dll"
+
+# Опционально - если хотите использовать определенную версию .NET
+[build.environment]
+NIXPACKS_CUSTOM_IMAGE = "nixpacks-images.railway.app/nixpacks/dotnet:8.2"

@@ -1,0 +1,8 @@
+bin/
+obj/
+.vscode/
+.vs/
+*.user
+*.suo
+*.cache
+appsettings.json 
