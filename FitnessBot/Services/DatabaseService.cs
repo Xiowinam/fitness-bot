@@ -90,37 +90,17 @@ namespace FitnessBot.Services
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync();
 
-            // Создаем таблицы если они не существуют
-            var createTablesCommand = new NpgsqlCommand(@"
-                CREATE TABLE IF NOT EXISTS users (
-                    user_id BIGSERIAL PRIMARY KEY,
-                    telegram_id BIGINT UNIQUE NOT NULL,
-                    username VARCHAR(100),
-                    first_name VARCHAR(255),
-                    last_name VARCHAR(255),
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
+            // Создание таблиц и т.д.
+            var createTableCommand = @"
+            CREATE TABLE IF NOT EXISTS Users (
+                Id SERIAL PRIMARY KEY,
+                ChatId BIGINT NOT NULL,
+                Username TEXT,
+                CreatedAt TIMESTAMP DEFAULT NOW()
+            )";
 
-                CREATE TABLE IF NOT EXISTS user_parameters (
-                    param_id BIGSERIAL PRIMARY KEY,
-                    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-                    gender VARCHAR(20) CHECK (gender IN ('male', 'female')),
-                    age INTEGER CHECK (age > 0 AND age < 120),
-                    weight DECIMAL(5, 2) CHECK (weight > 0 AND weight < 300),
-                    height INTEGER CHECK (height > 0 AND height < 250),
-                    goal VARCHAR(50) CHECK (goal IN ('weight_loss', 'maintenance', 'weight_gain')),
-                    activity_level VARCHAR(50) CHECK (activity_level IN ('sedentary', 'light', 'moderate', 'active', 'very_active')),
-                    daily_calories INTEGER,
-                    protein_goal INTEGER,
-                    fat_goal INTEGER,
-                    carbs_goal INTEGER,
-                    workout_plan_text TEXT,
-                    diet_advice TEXT,
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-            ", connection);
-
-            await createTablesCommand.ExecuteNonQueryAsync();
+            using var cmd = new NpgsqlCommand(createTableCommand, connection);
+            await cmd.ExecuteNonQueryAsync();
         }
 
         public async Task<long> GetOrCreateUserAsync(long telegramId, string? firstName, string? lastName, string? username)
