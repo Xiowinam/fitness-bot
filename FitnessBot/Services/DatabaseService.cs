@@ -84,60 +84,40 @@ namespace FitnessBot.Services
             try
             {
                 Console.WriteLine("Parsing Render-style connection string...");
+                Console.WriteLine($"Original URL: {renderUrl}");
 
-                // Формат: postgresql://username:password@host:port/database
-                // Удаляем префикс для парсинга
-                var cleanUrl = renderUrl.Replace("postgresql://", "postgres://");
+                // Убираем префикс
+                var withoutPrefix = renderUrl.Replace("postgresql://", "");
+                Console.WriteLine($"Without prefix: {withoutPrefix}");
 
-                // Парсим вручную так как Uri не всегда правильно определяет порт
-                var atIndex = cleanUrl.IndexOf('@');
-                if (atIndex == -1) throw new FormatException("No @ found in connection string");
+                // Разделяем на части по @
+                var atIndex = withoutPrefix.IndexOf('@');
+                if (atIndex == -1) throw new FormatException("No @ symbol found in connection string");
 
-                var userPassPart = cleanUrl.Substring(0, atIndex);
-                var hostDbPart = cleanUrl.Substring(atIndex + 1);
+                var userPassPart = withoutPrefix.Substring(0, atIndex);
+                var hostDbPart = withoutPrefix.Substring(atIndex + 1);
+
+                Console.WriteLine($"UserPass part: {userPassPart}");
+                Console.WriteLine($"HostDB part: {hostDbPart}");
 
                 // Парсим username:password
-                var userPassParts = userPassPart.Split(':');
-                if (userPassParts.Length != 2) throw new FormatException("Invalid user:password format");
+                var colonIndex = userPassPart.IndexOf(':');
+                if (colonIndex == -1) throw new FormatException("No : symbol in user:password part");
 
-                var username = userPassParts[0];
-                var password = userPassParts[1];
+                var username = userPassPart.Substring(0, colonIndex);
+                var password = userPassPart.Substring(colonIndex + 1);
 
-                // Парсим host:port/database
-                var colonIndex = hostDbPart.IndexOf(':');
+                Console.WriteLine($"Username: {username}, Password: {password}");
+
+                // Парсим host/database
                 var slashIndex = hostDbPart.IndexOf('/');
+                if (slashIndex == -1) throw new FormatException("No / symbol in host/database part");
 
-                string host;
-                int port;
-                string database;
+                var host = hostDbPart.Substring(0, slashIndex);
+                var database = hostDbPart.Substring(slashIndex + 1);
+                var port = 5432; // Стандартный порт PostgreSQL
 
-                if (colonIndex != -1 && slashIndex != -1 && colonIndex < slashIndex)
-                {
-                    // Есть порт: host:port/database
-                    host = hostDbPart.Substring(0, colonIndex);
-                    var portStr = hostDbPart.Substring(colonIndex + 1, slashIndex - colonIndex - 1);
-                    database = hostDbPart.Substring(slashIndex + 1);
-
-                    if (!int.TryParse(portStr, out port))
-                    {
-                        Console.WriteLine($"Warning: Invalid port '{portStr}', using default 5432");
-                        port = 5432;
-                    }
-                }
-                else if (slashIndex != -1)
-                {
-                    // Нет порта: host/database
-                    host = hostDbPart.Substring(0, slashIndex);
-                    database = hostDbPart.Substring(slashIndex + 1);
-                    port = 5432; // default PostgreSQL port
-                    Console.WriteLine("No port specified, using default 5432");
-                }
-                else
-                {
-                    throw new FormatException("Invalid host/database format");
-                }
-
-                Console.WriteLine($"Parsed: Host={host}, Port={port}, User={username}, DB={database}");
+                Console.WriteLine($"Host: {host}, Database: {database}, Port: {port}");
 
                 // Создаем стандартную строку подключения .NET
                 var netConnectionString = $"Host={host};Port={port};Username={username};Password={password};Database={database};SSL Mode=Require;Trust Server Certificate=true";
@@ -148,6 +128,7 @@ namespace FitnessBot.Services
             catch (Exception ex)
             {
                 Console.WriteLine($"Error parsing connection string: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 throw;
             }
         }
