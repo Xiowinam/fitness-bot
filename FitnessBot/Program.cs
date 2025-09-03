@@ -5,10 +5,10 @@ Console.WriteLine("=== Fitness Bot Starting ===");
 
 // Получаем переменные окружения
 var botToken = Environment.GetEnvironmentVariable("BOT_TOKEN");
-var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+var renderDbUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
 
 Console.WriteLine($"Bot token: {!string.IsNullOrEmpty(botToken)}");
-Console.WriteLine($"Connection string: {!string.IsNullOrEmpty(connectionString)}");
+Console.WriteLine($"Database URL: {!string.IsNullOrEmpty(renderDbUrl)}");
 
 if (string.IsNullOrEmpty(botToken))
 {
@@ -16,15 +16,19 @@ if (string.IsNullOrEmpty(botToken))
     return;
 }
 
-if (string.IsNullOrEmpty(connectionString))
+if (string.IsNullOrEmpty(renderDbUrl))
 {
     Console.WriteLine("ERROR: DATABASE_URL environment variable is required");
     return;
 }
 
+// Преобразование Render PostgreSQL URL в .NET connection string
+var connectionString = ConvertRenderDbUrlToConnectionString(renderDbUrl);
+Console.WriteLine($"Converted connection string: {connectionString}");
+
 try
 {
-    // Создаем сервисы вручную
+    // Создаем сервисы
     var dbService = new DatabaseService(connectionString);
     var botService = new TelegramBotService(botToken, dbService);
 
@@ -46,4 +50,22 @@ catch (Exception ex)
     Console.WriteLine($"❌ Fatal error: {ex.Message}");
     Console.WriteLine($"Stack trace: {ex.StackTrace}");
     Environment.Exit(1);
+}
+
+// Метод для преобразования Render DB URL в .NET connection string
+static string ConvertRenderDbUrlToConnectionString(string renderDbUrl)
+{
+    try
+    {
+        // Формат: postgresql://username:password@hostname:5432/database
+        var uri = new Uri(renderDbUrl);
+        var userInfo = uri.UserInfo.Split(':');
+
+        return $"Host={uri.Host};Port={uri.Port};Username={userInfo[0]};Password={userInfo[1]};Database={uri.AbsolutePath.TrimStart('/')};SSL Mode=Require;Trust Server Certificate=true";
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error converting database URL: {ex.Message}");
+        throw;
+    }
 }
