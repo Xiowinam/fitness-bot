@@ -9,8 +9,65 @@ namespace FitnessBot.Services
 
         public DatabaseService(string connectionString)
         {
-            _connectionString = connectionString;
-            Console.WriteLine("DatabaseService created");
+            // Преобразуем строку подключения при создании
+            _connectionString = ConvertConnectionString(connectionString);
+            Console.WriteLine("DatabaseService created with converted connection string");
+        }
+
+        private string ConvertConnectionString(string inputString)
+        {
+            try
+            {
+                // Если уже в правильном формате .NET
+                if (inputString.Contains("Host=") && inputString.Contains("Port="))
+                {
+                    Console.WriteLine("Connection string is already in .NET format");
+                    return inputString;
+                }
+
+                // Если это Render-style URL
+                if (inputString.Contains("postgresql://"))
+                {
+                    Console.WriteLine("Converting Render-style connection string...");
+
+                    // Формат: postgresql://username:password@host/database
+                    var withoutPrefix = inputString.Replace("postgresql://", "");
+                    var atIndex = withoutPrefix.IndexOf('@');
+
+                    if (atIndex == -1) throw new FormatException("No @ symbol found");
+
+                    var userPassPart = withoutPrefix.Substring(0, atIndex);
+                    var hostDbPart = withoutPrefix.Substring(atIndex + 1);
+
+                    var colonIndex = userPassPart.IndexOf(':');
+                    if (colonIndex == -1) throw new FormatException("No : symbol in user:password");
+
+                    var username = userPassPart.Substring(0, colonIndex);
+                    var password = userPassPart.Substring(colonIndex + 1);
+
+                    var slashIndex = hostDbPart.IndexOf('/');
+                    if (slashIndex == -1) throw new FormatException("No / symbol in host/database");
+
+                    var host = hostDbPart.Substring(0, slashIndex);
+                    var database = hostDbPart.Substring(slashIndex + 1);
+                    var port = 5432;
+
+                    var converted = $"Host={host};Port={port};Username={username};Password={password};Database={database};SSL Mode=Require;Trust Server Certificate=true";
+
+                    Console.WriteLine("Successfully converted connection string");
+                    return converted;
+                }
+
+                // Если неизвестный формат
+                Console.WriteLine("Unknown connection string format, using as-is");
+                return inputString;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error converting connection string: {ex.Message}");
+                // Возвращаем оригинальную строку и надеемся что она правильная
+                return inputString;
+            }
         }
 
         public async Task InitializeDatabaseAsync()
