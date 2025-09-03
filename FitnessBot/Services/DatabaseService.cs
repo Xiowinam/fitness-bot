@@ -18,46 +18,99 @@ namespace FitnessBot.Services
             try
             {
                 Console.WriteLine("Initializing database...");
+                Console.WriteLine($"Using connection string: {_connectionString}");
 
-                using var connection = new NpgsqlConnection(_connectionString);
-                await connection.OpenAsync();
-                Console.WriteLine("✅ Connected to database");
+                // Пробуем разные форматы подключения
+                NpgsqlConnection connection;
 
-                var command = new NpgsqlCommand(@"
-                    CREATE TABLE IF NOT EXISTS users (
-                        user_id BIGSERIAL PRIMARY KEY,
-                        telegram_id BIGINT UNIQUE NOT NULL,
-                        username VARCHAR(100),
-                        first_name VARCHAR(255),
-                        last_name VARCHAR(255),
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
+                if (_connectionString.Contains("postgresql://"))
+                {
+                    // Парсим Render-style URL
+                    connection = ParseRenderConnectionString(_connectionString);
+                }
+                else
+                {
+                    // Используем как есть (стандартный формат .NET)
+                    connection = new NpgsqlConnection(_connectionString);
+                }
 
-                    CREATE TABLE IF NOT EXISTS user_parameters (
-                        param_id BIGSERIAL PRIMARY KEY,
-                        user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-                        gender VARCHAR(20),
-                        age INTEGER,
-                        weight DECIMAL(5, 2),
-                        height INTEGER,
-                        goal VARCHAR(50),
-                        activity_level VARCHAR(50),
-                        daily_calories INTEGER,
-                        protein_goal INTEGER,
-                        fat_goal INTEGER,
-                        carbs_goal INTEGER,
-                        workout_plan_text TEXT,
-                        diet_advice TEXT,
-                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                    );
-                ", connection);
+                using (connection)
+                {
+                    await connection.OpenAsync();
+                    Console.WriteLine("✅ Connected to database");
 
-                await command.ExecuteNonQueryAsync();
-                Console.WriteLine("✅ Database tables created");
+                    var command = new NpgsqlCommand(@"
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id BIGSERIAL PRIMARY KEY,
+                    telegram_id BIGINT UNIQUE NOT NULL,
+                    username VARCHAR(100),
+                    first_name VARCHAR(255),
+                    last_name VARCHAR(255),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+
+                CREATE TABLE IF NOT EXISTS user_parameters (
+                    param_id BIGSERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+                    gender VARCHAR(20),
+                    age INTEGER,
+                    weight DECIMAL(5, 2),
+                    height INTEGER,
+                    goal VARCHAR(50),
+                    activity_level VARCHAR(50),
+                    daily_calories INTEGER,
+                    protein_goal INTEGER,
+                    fat_goal INTEGER,
+                    carbs_goal INTEGER,
+                    workout_plan_text TEXT,
+                    diet_advice TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+            ", connection);
+
+                    await command.ExecuteNonQueryAsync();
+                    Console.WriteLine("✅ Database tables created");
+                }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Database error: {ex.Message}");
+                throw;
+            }
+        }
+
+        private NpgsqlConnection ParseRenderConnectionString(string renderUrl)
+        {
+            try
+            {
+                Console.WriteLine("Parsing Render-style connection string...");
+
+                // Формат: postgresql://username:password@host:port/database
+                var uri = new Uri(renderUrl);
+                var userInfo = uri.UserInfo.Split(':');
+
+                if (userInfo.Length != 2)
+                {
+                    throw new FormatException("Invalid user info in connection string");
+                }
+
+                var username = userInfo[0];
+                var password = userInfo[1];
+                var host = uri.Host;
+                var port = uri.Port;
+                var database = uri.AbsolutePath.TrimStart('/');
+
+                Console.WriteLine($"Parsed: Host={host}, Port={port}, User={username}, DB={database}");
+
+                // Создаем стандартную строку подключения .NET
+                var netConnectionString = $"Host={host};Port={port};Username={username};Password={password};Database={database};SSL Mode=Require;Trust Server Certificate=true";
+
+                Console.WriteLine($"Converted to: {netConnectionString}");
+                return new NpgsqlConnection(netConnectionString);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error parsing connection string: {ex.Message}");
                 throw;
             }
         }
