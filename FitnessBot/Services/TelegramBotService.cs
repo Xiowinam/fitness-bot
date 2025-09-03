@@ -28,6 +28,11 @@ namespace FitnessBot.Services
             var me = await _botClient.GetMeAsync(cancellationToken);
             Console.WriteLine($"Бот @{me.Username} запущен!");
 
+            // Останавливаем любые предыдущие подключения
+            await _botClient.DeleteWebhookAsync(cancellationToken: cancellationToken);
+            Console.WriteLine("Webhook deleted");
+
+            // Запускаем polling
             _botClient.StartReceiving(
                 updateHandler: HandleUpdateAsync,
                 pollingErrorHandler: HandlePollingErrorAsync,
@@ -35,7 +40,9 @@ namespace FitnessBot.Services
                 cancellationToken: cancellationToken
             );
 
-            // Бесконечно ждем пока не отменят
+            Console.WriteLine("Polling started successfully");
+
+            // Ждем отмены
             await Task.Delay(-1, cancellationToken);
         }
 
@@ -870,6 +877,9 @@ namespace FitnessBot.Services
                 userState.CurrentState = ConversationState.ShowingExercisesMenu;
             }
         }
+
+
+
         private async Task ShowWeightLossExercises(ITelegramBotClient botClient, long chatId, CancellationToken cancellationToken)
         {
             var exercises = @"
