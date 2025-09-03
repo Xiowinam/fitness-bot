@@ -86,19 +86,56 @@ namespace FitnessBot.Services
                 Console.WriteLine("Parsing Render-style connection string...");
 
                 // Формат: postgresql://username:password@host:port/database
-                var uri = new Uri(renderUrl);
-                var userInfo = uri.UserInfo.Split(':');
+                // Удаляем префикс для парсинга
+                var cleanUrl = renderUrl.Replace("postgresql://", "postgres://");
 
-                if (userInfo.Length != 2)
+                // Парсим вручную так как Uri не всегда правильно определяет порт
+                var atIndex = cleanUrl.IndexOf('@');
+                if (atIndex == -1) throw new FormatException("No @ found in connection string");
+
+                var userPassPart = cleanUrl.Substring(0, atIndex);
+                var hostDbPart = cleanUrl.Substring(atIndex + 1);
+
+                // Парсим username:password
+                var userPassParts = userPassPart.Split(':');
+                if (userPassParts.Length != 2) throw new FormatException("Invalid user:password format");
+
+                var username = userPassParts[0];
+                var password = userPassParts[1];
+
+                // Парсим host:port/database
+                var colonIndex = hostDbPart.IndexOf(':');
+                var slashIndex = hostDbPart.IndexOf('/');
+
+                string host;
+                int port;
+                string database;
+
+                if (colonIndex != -1 && slashIndex != -1 && colonIndex < slashIndex)
                 {
-                    throw new FormatException("Invalid user info in connection string");
-                }
+                    // Есть порт: host:port/database
+                    host = hostDbPart.Substring(0, colonIndex);
+                    var portStr = hostDbPart.Substring(colonIndex + 1, slashIndex - colonIndex - 1);
+                    database = hostDbPart.Substring(slashIndex + 1);
 
-                var username = userInfo[0];
-                var password = userInfo[1];
-                var host = uri.Host;
-                var port = uri.Port;
-                var database = uri.AbsolutePath.TrimStart('/');
+                    if (!int.TryParse(portStr, out port))
+                    {
+                        Console.WriteLine($"Warning: Invalid port '{portStr}', using default 5432");
+                        port = 5432;
+                    }
+                }
+                else if (slashIndex != -1)
+                {
+                    // Нет порта: host/database
+                    host = hostDbPart.Substring(0, slashIndex);
+                    database = hostDbPart.Substring(slashIndex + 1);
+                    port = 5432; // default PostgreSQL port
+                    Console.WriteLine("No port specified, using default 5432");
+                }
+                else
+                {
+                    throw new FormatException("Invalid host/database format");
+                }
 
                 Console.WriteLine($"Parsed: Host={host}, Port={port}, User={username}, DB={database}");
 
