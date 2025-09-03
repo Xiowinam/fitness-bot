@@ -6,6 +6,7 @@ using FitnessBot.Models;
 using FitnessBot.Services;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Exceptions;
+using Microsoft.Extensions.Logging;
 
 namespace FitnessBot.Services
 {
@@ -14,11 +15,13 @@ namespace FitnessBot.Services
         private readonly ITelegramBotClient _botClient;
         private readonly DatabaseService _dbService;
         private readonly Dictionary<long, UserState> _userStates = new();
+        private readonly ILogger<TelegramBotService> _logger;
 
-        public TelegramBotService(string botToken, DatabaseService dbService)
+        public TelegramBotService(string botToken, DatabaseService dbService, ILogger<TelegramBotService> logger)
         {
             _botClient = new TelegramBotClient(botToken);
             _dbService = dbService;
+            _logger = logger;
         }
 
         public async Task StartBotAsync(CancellationToken cancellationToken)
