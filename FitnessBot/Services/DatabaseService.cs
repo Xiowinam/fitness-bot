@@ -117,12 +117,69 @@ namespace FitnessBot.Services
         // Простые версии недостающих методов
         public async Task<bool> UserHasProfileAsync(long telegramId)
         {
-            return false; // временная заглушка
+            try
+            {
+                using var connection = new NpgsqlConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = new NpgsqlCommand(@"
+            SELECT COUNT(*) FROM user_parameters up
+            JOIN users u ON u.user_id = up.user_id
+            WHERE u.telegram_id = @telegramId", connection);
+
+                command.Parameters.AddWithValue("telegramId", telegramId);
+                var count = (long)(await command.ExecuteScalarAsync() ?? 0);
+                return count > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error checking user profile: {ex.Message}");
+                return false;
+            }
         }
 
         public async Task<UserParameters?> GetLatestUserParametersAsync(long telegramId)
         {
-            return null; // временная заглушка
+            try
+            {
+                using var connection = new NpgsqlConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = new NpgsqlCommand(@"
+            SELECT up.gender, up.age, up.weight, up.height, up.goal, up.activity_level, 
+                   up.daily_calories, up.protein_goal, up.fat_goal, up.carbs_goal 
+            FROM user_parameters up
+            JOIN users u ON u.user_id = up.user_id
+            WHERE u.telegram_id = @telegramId
+            ORDER BY up.created_at DESC
+            LIMIT 1", connection);
+
+                command.Parameters.AddWithValue("telegramId", telegramId);
+
+                using var reader = await command.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    return new UserParameters
+                    {
+                        Gender = reader.GetString(reader.GetOrdinal("gender")),
+                        Age = reader.GetInt32(reader.GetOrdinal("age")),
+                        Weight = reader.GetDouble(reader.GetOrdinal("weight")),
+                        Height = reader.GetInt32(reader.GetOrdinal("height")),
+                        Goal = reader.GetString(reader.GetOrdinal("goal")),
+                        ActivityLevel = reader.GetString(reader.GetOrdinal("activity_level")),
+                        DailyCalories = reader.GetInt32(reader.GetOrdinal("daily_calories")),
+                        ProteinGoal = reader.GetInt32(reader.GetOrdinal("protein_goal")),
+                        FatGoal = reader.GetInt32(reader.GetOrdinal("fat_goal")),
+                        CarbsGoal = reader.GetInt32(reader.GetOrdinal("carbs_goal"))
+                    };
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting user parameters: {ex.Message}");
+                return null;
+            }
         }
     }
 }

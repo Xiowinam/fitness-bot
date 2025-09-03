@@ -1,5 +1,4 @@
 ﻿using FitnessBot.Services;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 Console.WriteLine("=== Fitness Bot Starting ===");
@@ -25,26 +24,26 @@ if (string.IsNullOrEmpty(connectionString))
 
 try
 {
-    var host = Host.CreateDefaultBuilder(args)
-        .ConfigureServices(services =>
-        {
-            services.AddSingleton(new DatabaseService(connectionString));
-            services.AddSingleton(new TelegramBotService(botToken, services.BuildServiceProvider().GetRequiredService<DatabaseService>()));
-            services.AddHostedService<BotWorker>();
-        })
-        .Build();
+    // Создаем сервисы вручную
+    var dbService = new DatabaseService(connectionString);
+    var botService = new TelegramBotService(botToken, dbService);
 
     // Инициализация базы
-    var dbService = host.Services.GetRequiredService<DatabaseService>();
     await dbService.InitializeDatabaseAsync();
-
     Console.WriteLine("✅ Database initialized successfully");
-    Console.WriteLine("✅ Starting bot...");
 
-    await host.RunAsync();
+    // Запуск бота
+    Console.WriteLine("✅ Starting bot...");
+    using var cts = new CancellationTokenSource();
+    await botService.StartBotAsync(cts.Token);
+
+    // Ждем пока работает бот
+    Console.WriteLine("Bot is running. Press Ctrl+C to stop.");
+    await Task.Delay(-1, cts.Token);
 }
 catch (Exception ex)
 {
     Console.WriteLine($"❌ Fatal error: {ex.Message}");
+    Console.WriteLine($"Stack trace: {ex.StackTrace}");
     Environment.Exit(1);
 }

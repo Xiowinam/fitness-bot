@@ -15,15 +15,12 @@ namespace FitnessBot.Services
         private readonly ITelegramBotClient _botClient;
         private readonly DatabaseService _dbService;
         private readonly Dictionary<long, UserState> _userStates = new();
-        private readonly ILogger<TelegramBotService> _logger;
 
-        public TelegramBotService(string botToken, DatabaseService dbService, ILogger<TelegramBotService> logger)
+        public TelegramBotService(string botToken, DatabaseService dbService)
         {
             _botClient = new TelegramBotClient(botToken);
             _dbService = dbService;
-            _logger = logger;
-
-            _logger.LogInformation("TelegramBotService initialized");
+            Console.WriteLine("TelegramBotService initialized");
         }
 
         public async Task StartBotAsync(CancellationToken cancellationToken)
@@ -37,6 +34,9 @@ namespace FitnessBot.Services
                 receiverOptions: new ReceiverOptions { AllowedUpdates = [] },
                 cancellationToken: cancellationToken
             );
+
+            // Бесконечно ждем пока не отменят
+            await Task.Delay(-1, cancellationToken);
         }
 
         private async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
