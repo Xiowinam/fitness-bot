@@ -22,6 +22,8 @@ namespace FitnessBot.Services
             _botClient = new TelegramBotClient(botToken);
             _dbService = dbService;
             _logger = logger;
+
+            _logger.LogInformation("TelegramBotService initialized");
         }
 
         public async Task StartBotAsync(CancellationToken cancellationToken)

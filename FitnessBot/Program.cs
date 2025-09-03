@@ -1,4 +1,5 @@
 ﻿using FitnessBot.Services;
+using FitnessBot.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -11,51 +12,65 @@ var host = Host.CreateDefaultBuilder(args)
         services.Configure<BotConfiguration>(
             context.Configuration.GetSection("BotConfiguration"));
 
-        // Сервис базы данных
-        services.AddSingleton<DatabaseService>(provider =>
+        // Логирование
+        services.AddLogging(builder =>
         {
-            var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
-            if (string.IsNullOrEmpty(connectionString))
-            {
-                connectionString = context.Configuration.GetConnectionString("PostgreSQL");
-            }
-
-            var logger = provider.GetRequiredService<ILogger<Program>>();
-            logger.LogInformation("Инициализация DatabaseService");
-
-            return new DatabaseService(connectionString);
+            builder.AddConsole();
+            builder.AddDebug();
         });
 
-        // Сервис телеграм бота
+        // Получаем строку подключения
+        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__PostgreSQL")
+            ?? context.Configuration.GetConnectionString("PostgreSQL");
+
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            throw new InvalidOperationException("Database connection string is not configured");
+        }
+
+        // Сервисы
         services.AddSingleton<TelegramBotService>(provider =>
         {
             var botConfig = context.Configuration.GetSection("BotConfiguration").Get<BotConfiguration>();
+            if (string.IsNullOrEmpty(botConfig?.BotToken))
+            {
+                throw new InvalidOperationException("Bot token is not configured");
+            }
+
             var dbService = provider.GetRequiredService<DatabaseService>();
-            return new TelegramBotService(botConfig.BotToken, dbService);
+            var logger = provider.GetRequiredService<ILogger<TelegramBotService>>();
+            return new TelegramBotService(botConfig.BotToken, dbService, logger);
+        });
+
+        services.AddSingleton<TelegramBotService>(provider =>
+        {
+            var botConfig = context.Configuration.GetSection("BotConfiguration").Get<BotConfiguration>();
+            if (string.IsNullOrEmpty(botConfig?.BotToken))
+            {
+                throw new InvalidOperationException("Bot token is not configured");
+            }
+
+            var dbService = provider.GetRequiredService<DatabaseService>();
+            var logger = provider.GetRequiredService<ILogger<TelegramBotService>>();
+            return new TelegramBotService(botConfig.BotToken, dbService, logger);
         });
 
         services.AddHostedService<BotWorker>();
     })
     .Build();
 
-// Инициализация базы данных перед запуском
-using (var scope = host.Services.CreateScope())
+// Инициализация базы данных
+try
 {
-    var services = scope.ServiceProvider;
-    var logger = services.GetRequiredService<ILogger<Program>>();
-    var dbService = services.GetRequiredService<DatabaseService>();
-
-    try
-    {
-        logger.LogInformation("Инициализация базы данных...");
-        await dbService.InitializeDatabaseAsync();
-        logger.LogInformation("База данных инициализирована");
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Ошибка инициализации базы данных");
-        throw;
-    }
+    using var scope = host.Services.CreateScope();
+    var dbService = scope.ServiceProvider.GetRequiredService<DatabaseService>();
+    await dbService.InitializeDatabaseAsync();
+    Console.WriteLine("Database initialized successfully");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Error initializing database: {ex.Message}");
+    throw;
 }
 
 await host.RunAsync();
@@ -65,7 +80,7 @@ public class BotConfiguration
     public string BotToken { get; set; } = string.Empty;
 }
 
-public class BotWorker : BackgroundService
+public class BotWorker : IHostedService
 {
     private readonly DatabaseService _dbService;
     private readonly TelegramBotService _botService;
@@ -78,21 +93,23 @@ public class BotWorker : BackgroundService
         _logger = logger;
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Запуск бота...");
-        await _botService.StartBotAsync(stoppingToken);
-
-        // Ждем отмены
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            await Task.Delay(1000, stoppingToken);
+            _logger.LogInformation("Starting bot worker...");
+            await _botService.StartBotAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error starting bot worker");
+            throw;
         }
     }
 
-    public override async Task StopAsync(CancellationToken cancellationToken)
+    public Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Остановка бота...");
-        await base.StopAsync(cancellationToken);
+        _logger.LogInformation("Bot worker stopped");
+        return Task.CompletedTask;
     }
 }
