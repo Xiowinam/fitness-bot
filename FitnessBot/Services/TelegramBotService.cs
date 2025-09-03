@@ -25,24 +25,47 @@ namespace FitnessBot.Services
 
         public async Task StartBotAsync(CancellationToken cancellationToken)
         {
-            var me = await _botClient.GetMeAsync(cancellationToken);
-            Console.WriteLine($"Бот @{me.Username} запущен!");
+            var maxRetries = 3;
+            var retryCount = 0;
 
-            // Останавливаем любые предыдущие подключения
-            await _botClient.DeleteWebhookAsync(cancellationToken: cancellationToken);
-            Console.WriteLine("Webhook deleted");
+            while (retryCount < maxRetries)
+            {
+                try
+                {
+                    Console.WriteLine($"Starting bot attempt {retryCount + 1}...");
 
-            // Запускаем polling
-            _botClient.StartReceiving(
-                updateHandler: HandleUpdateAsync,
-                pollingErrorHandler: HandlePollingErrorAsync,
-                receiverOptions: new ReceiverOptions { AllowedUpdates = [] },
-                cancellationToken: cancellationToken
-            );
+                    // Важно: сначала удаляем webhook
+                    await _botClient.DeleteWebhookAsync(cancellationToken: cancellationToken);
+                    await Task.Delay(1000, cancellationToken); // Ждем секунду
 
-            Console.WriteLine("Polling started successfully");
+                    var me = await _botClient.GetMeAsync(cancellationToken);
+                    Console.WriteLine($"Бот @{me.Username} запущен!");
 
-            // Ждем отмены
+                    _botClient.StartReceiving(
+                        updateHandler: HandleUpdateAsync,
+                        pollingErrorHandler: HandlePollingErrorAsync,
+                        receiverOptions: new ReceiverOptions { AllowedUpdates = [] },
+                        cancellationToken: cancellationToken
+                    );
+
+                    Console.WriteLine("✅ Polling started successfully");
+                    break; // Успешно запустились
+                }
+                catch (ApiRequestException ex) when (ex.ErrorCode == 409)
+                {
+                    retryCount++;
+                    Console.WriteLine($"⚠️  Conflict detected, retry {retryCount}/{maxRetries}");
+
+                    if (retryCount >= maxRetries)
+                    {
+                        Console.WriteLine("❌ Too many conflicts, stopping bot");
+                        throw;
+                    }
+
+                    await Task.Delay(3000, cancellationToken); // Ждем 3 секунды перед повторной попыткой
+                }
+            }
+
             await Task.Delay(-1, cancellationToken);
         }
 
