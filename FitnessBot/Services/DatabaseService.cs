@@ -23,7 +23,6 @@ namespace FitnessBot.Services
                 await connection.OpenAsync();
                 Console.WriteLine("✅ Connected to database");
 
-                // Создаем таблицы
                 var command = new NpgsqlCommand(@"
                     CREATE TABLE IF NOT EXISTS users (
                         user_id BIGSERIAL PRIMARY KEY,
@@ -68,14 +67,12 @@ namespace FitnessBot.Services
             using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync();
 
-            // Поиск пользователя
             var findCommand = new NpgsqlCommand("SELECT user_id FROM users WHERE telegram_id = @telegramId", connection);
             findCommand.Parameters.AddWithValue("telegramId", telegramId);
 
             var result = await findCommand.ExecuteScalarAsync();
             if (result != null) return (long)result;
 
-            // Создание нового пользователя
             var insertCommand = new NpgsqlCommand(@"
                 INSERT INTO users (telegram_id, username, first_name, last_name)
                 VALUES (@telegramId, @username, @firstName, @lastName)
@@ -100,7 +97,6 @@ namespace FitnessBot.Services
                 VALUES 
                 (@userId, @gender, @age, @weight, @height, @goal, @activityLevel, @calories, @protein, @fat, @carbs, @workoutPlan, @dietAdvice)", connection);
 
-            // Добавление параметров
             command.Parameters.AddWithValue("userId", userId);
             command.Parameters.AddWithValue("gender", parameters.Gender);
             command.Parameters.AddWithValue("age", parameters.Age);
@@ -116,6 +112,17 @@ namespace FitnessBot.Services
             command.Parameters.AddWithValue("dietAdvice", parameters.DietAdvice);
 
             await command.ExecuteNonQueryAsync();
+        }
+
+        // Простые версии недостающих методов
+        public async Task<bool> UserHasProfileAsync(long telegramId)
+        {
+            return false; // временная заглушка
+        }
+
+        public async Task<UserParameters?> GetLatestUserParametersAsync(long telegramId)
+        {
+            return null; // временная заглушка
         }
     }
 }
